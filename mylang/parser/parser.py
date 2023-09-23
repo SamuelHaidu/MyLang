@@ -20,6 +20,7 @@ from mylang.ast.ast_objects import (
 )
 from mylang.parser.lexer import CalcLexer
 
+
 class CalcParser(Parser):
     tokens = CalcLexer.tokens
     op_map: Dict[str, BinOpName] = {
@@ -41,7 +42,7 @@ class CalcParser(Parser):
         "null": NullType(),
     }
 
-    # debugfile = "parser.out"
+    debugfile = "parser.out"
 
     @_("body statement")  # type: ignore
     def body(self, p):  # type: ignore
@@ -51,12 +52,12 @@ class CalcParser(Parser):
     @_("statement")  # type: ignore
     def body(self, p):  # type: ignore
         return Body([p.statement])
-    
+
     # If statement
     @_("IF L_PARENTHESIS expr R_PARENTHESIS L_BRACE body R_BRACE")  # type: ignore
     def statement(self, p):  # type: ignore
         return If(p.expr, p.body, None)
-    
+
     @_("IF L_PARENTHESIS expr R_PARENTHESIS L_BRACE body R_BRACE ELSE L_BRACE body R_BRACE")  # type: ignore
     def statement(self, p):  # type: ignore
         return If(p.expr, p.body0, p.body1)
@@ -99,7 +100,7 @@ class CalcParser(Parser):
     @_("ARROW function_type")  # type: ignore
     def return_definition(self, p):  # type: ignore
         return p.function_type
-    
+
     @_("RETURN expr END_STATEMENT")  # type: ignore
     def statement(self, p):  # type: ignore
         return Return(p.expr)
@@ -115,15 +116,15 @@ class CalcParser(Parser):
 
     # Call Functions
     @_("SYMBOL L_PARENTHESIS R_PARENTHESIS")  # type: ignore
-    def expr(self, p):  # type: ignore
+    def term(self, p):  # type: ignore
         return Call(p.SYMBOL, [])
 
     @_("SYMBOL L_PARENTHESIS expr R_PARENTHESIS")  # type: ignore
-    def expr(self, p):  # type: ignore
+    def term(self, p):  # type: ignore
         return Call(p.SYMBOL, p.expr)
 
     @_("SYMBOL L_PARENTHESIS arguments R_PARENTHESIS")  # type: ignore
-    def expr(self, p):  # type: ignore
+    def term(self, p):  # type: ignore
         return Call(p.SYMBOL, p.arguments)
 
     @_("arguments expr")  # type: ignore
@@ -138,7 +139,7 @@ class CalcParser(Parser):
     @_("expr COMMA")  # type: ignore
     def arguments(self, p):  # type: ignore
         return [p.expr]
-    
+
     # Basic Statements
     @_("expr END_STATEMENT")  # type: ignore
     def statement(self, p):  # type: ignore
