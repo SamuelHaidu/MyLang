@@ -96,6 +96,9 @@ class SymbolTable:
         raise Exception(f"Context {name} not found in {self.context_name}")
 
     def reference(self, name: str) -> Symbol:
+        if name == self.context_name:
+            return self.lookup(name)
+        
         symbol = self.symbols.get(name)
         if symbol:
             return symbol
@@ -105,8 +108,12 @@ class SymbolTable:
             if symbol.load_type != "global":
                 clojure_symbol = symbol.copy()
                 clojure_symbol.load_type = "dereference"
+                function_symbol = self.lookup(self.context_name)
+                function_symbol.type.closure_parameters.append( # type: ignore
+                    Parameter(name, clojure_symbol.type)
+                )
                 self.symbols[name] = clojure_symbol
-                return clojure_symbol
+                return clojure_symbol.copy()
 
         raise Exception(f"Symbol {name} was not declared")
 
@@ -144,7 +151,6 @@ def create_symbol_table(
     match ast:
         case Module() as module:
             symbol_table = create_symbol_table(module.body, symbol_table)
-            symbol_table.compute_closures_parameters()
             return symbol_table
 
         case Body() as body:
