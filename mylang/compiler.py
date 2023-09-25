@@ -359,7 +359,7 @@ def create_main(module: ir.Module, module_body: Body, symbol_table: SymbolTable)
         pass
 
     builder.ret(ir.Constant(ir.IntType(32), 0))
-    return module_ir
+    return module
 
 def generate_format_string(values: list) -> ir.Constant:
     format_str_parts = []
