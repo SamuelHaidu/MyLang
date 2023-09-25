@@ -17,15 +17,15 @@ class CalcLexer(Lexer):
         "IF",
         "ELSE",
         "END_STATEMENT",
+        "BOOL",
         "SYMBOL",
         "NUMBER",
-        "BOOL",
         "NULL",
     }
 
     ARROW = r"->"
     SYMBOL_TYPE_ASSIGN = r":"
-    OPERATOR = r"[-+*/%]|==|>=|<=|>|<"
+    OPERATOR = r"[-+*/%]|==|!=|>=|<=|>|<|or|and|xor"
     ASSIGN = r"="
     FUNCTION = r"function "
     L_PARENTHESIS = r"\("
@@ -37,9 +37,9 @@ class CalcLexer(Lexer):
     IF = r"if"
     ELSE = r"else"
     END_STATEMENT = r";"
+    BOOL = r"True|False"
     SYMBOL = r"[a-zA-Z_][a-zA-Z0-9_]*"
     NUMBER = r"\d+"
-    BOOL = r"True|False"
     NULL = r"null"
     ignore = " \t"
 
