@@ -1,0 +1,24 @@
+function outer(a: int) -> int {
+    function inner() -> int {
+        return a + 10;
+    }
+    return inner();
+}
+
+outer_result: int = outer(10);
+print(outer_result);
+
+function multi(a: int, b: int) -> int {
+    return a * b;
+}
+
+print(multi(10, 20));
+
+function pow(base: int, exp: int) -> int {
+    if (exp == 0) {
+        return 1;
+    }
+    return base * pow(base, exp - 1);
+}
+
+print(pow(2, 8));
