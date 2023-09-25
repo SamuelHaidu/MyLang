@@ -47,7 +47,7 @@ class CalcParser(Parser):
         "null": NullType(),
     }
 
-    debugfile = "parser.out"
+    # debugfile = "parser.out"
 
     @_("body statement")  # type: ignore
     def body(self, p):  # type: ignore
