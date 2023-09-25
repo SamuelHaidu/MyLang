@@ -1,5 +1,5 @@
 from abc import ABC
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal as LiteralType, Optional
 
 
@@ -11,8 +11,9 @@ class MyLangType(ABC):
     pass
 
 
-BinOpName = LiteralType["add", "sub", "mul", "div", "mod", "gt", "lt", "ge", "le", "eq"]
-
+BinOpName = LiteralType[
+    "add", "sub", "mul", "div", "mod", "gt", "lt", "ge", "le", "eq", "ne", "or", "and", "not", "xor",
+]
 
 @dataclass
 class IntType(MyLangType):
@@ -37,7 +38,27 @@ class Parameter:
 class FunctionType(MyLangType):
     parameters: list[Parameter]
     return_type: MyLangType
-    closure_parameters: Optional[list[Parameter]] = None
+    closure_parameters: list[Parameter] = field(default_factory=list)
+
+    @property
+    def is_clojure(self) -> bool:
+        return self.closure_parameters is not None and len(self.closure_parameters) > 0
+
+    def get_argument_index(self, name: str) -> int:
+        for index, parameter in enumerate(self.parameters):
+            if parameter.name == name:
+                return index
+        raise Exception(f"Argument {name} not found")
+    
+    def get_environment_index(self, name: str) -> int:
+        if not self.closure_parameters:
+            raise Exception("This function has no closure parameters")
+        
+        for index, parameter in enumerate(self.closure_parameters):
+            if parameter.name == name:
+                return index
+        
+        raise Exception(f"Environment {name} not found")
 
 
 @dataclass
