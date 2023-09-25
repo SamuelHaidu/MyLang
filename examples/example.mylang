@@ -22,3 +22,36 @@ function pow(base: int, exp: int) -> int {
 }
 
 print(pow(2, 8));
+
+function fib(n: int) -> int {
+    if (n == 0) {
+        return 0;
+    }
+    if (n == 1) {
+        return 1;
+    }
+    return fib(n - 1) + fib(n - 2);
+}
+
+print(fib(10));
+
+function fact(n: int) -> int {
+    if (n == 0) {
+        return 1;
+    }
+    return n * fact(n - 1);
+}
+
+print(fact(10));
+
+function conditional_statement(a: int, b: int) -> int {
+    if (a > b) {
+        return a;
+    } else {
+        b = 100;
+    }
+    return b + 10;
+}
+
+print(conditional_statement(10, 20));
+print(conditional_statement(20, 10));
