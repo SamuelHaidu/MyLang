@@ -10,6 +10,7 @@ from mylang.ast.ast_objects import (
     MyLangType,
     Load,
     Module,
+    NullType,
     Operator,
     Parameter,
     Return,
@@ -37,9 +38,14 @@ class Symbol:
 
 class SymbolTable:
     module_context_name: str = "module"
+    c_globals: list[str] = [
+        'print'
+    ]
 
     def __init__(self, context_name: str, parent: Optional["SymbolTable"] = None):
         self.symbols: Dict[str, Symbol] = {}
+        if not context_name and parent:
+            raise Exception("Context name is required when parent is provided")
         self.context_name = context_name or self.module_context_name
         self._contexts: Dict[str, SymbolTable] = {}
         self._parent: SymbolTable | None = parent
@@ -98,6 +104,8 @@ class SymbolTable:
         raise Exception(f"Context {name} not found in {self.context_name}")
 
     def reference(self, name: str) -> Symbol:
+        if name in self.c_globals:
+            return Symbol(name, NullType(), "global")
         if name == self.context_name:
             return self.lookup(name)
         
@@ -116,6 +124,7 @@ class SymbolTable:
                 )
                 self.symbols[name] = clojure_symbol
                 return clojure_symbol.copy()
+            return symbol
 
         raise Exception(f"Symbol {name} was not declared")
 
