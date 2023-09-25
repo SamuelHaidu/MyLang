@@ -264,6 +264,14 @@ def create_statement(
             pass
 
         case Call() as call:
+            if call.name == "print":
+                args = [
+                    create_statement(builder, module, argument, symbol_table)
+                    for argument in call.arguments
+                ]
+                call_printf(builder, args)
+                return
+            
             function_symbol = symbol_table.lookup(call.name)
             if function_symbol.type.is_clojure:  # type: ignore
                 env_struct_type = function_symbol.llvm_lite_pointer.args[-1].type.pointee  # type: ignore
@@ -322,12 +330,17 @@ def create_statement(
 def create_string(string: str) -> ir.Constant:
     string_type = ir.ArrayType(ir.IntType(8), len(string) + 2)
     string_constant = ir.Constant(
-        string_type, bytearray(string.encode("utf8") + b"\x0A\x00")
+        string_type, bytearray(string.encode("utf8") + b"\x00")
     )
     return string_constant
 
 
 def create_main(module: ir.Module, module_body: Body, symbol_table: SymbolTable):
+    printf_type = ir.FunctionType(
+        ir.IntType(32), [ir.PointerType(ir.IntType(8))], var_arg=True
+    )
+    ir.Function(module, printf_type, name="printf")
+    
     function_type = ir.FunctionType(ir.IntType(32), [])
     function_ir = ir.Function(module, function_type, name="main")
     block = function_ir.append_basic_block(name="entry")
@@ -339,29 +352,51 @@ def create_main(module: ir.Module, module_body: Body, symbol_table: SymbolTable)
     printf_type = ir.FunctionType(
         ir.IntType(32), [ir.PointerType(ir.IntType(8))], var_arg=True
     )
-    printf = ir.Function(module, printf_type, name="printf")
-
-    format_str = create_string("%d\n")
-    format_string_ptr = builder.alloca(format_str.type, name="format_string_ptr")
-    builder.store(format_str, format_string_ptr)
-    format_string_ptr = builder.gep(
-        format_string_ptr,
-        [ir.Constant(ir.IntType(32), 0), ir.Constant(ir.IntType(32), 0)],
-    )
     try:
-        builder.call(
-            printf,
-            [
-                format_string_ptr,
-                builder.load(symbol_table.lookup("print_on_screen").llvm_lite_pointer),
-            ],
-        )
+        print_on_screen = builder.load(symbol_table.lookup("print_on_screen").llvm_lite_pointer)
+        call_printf(builder, [print_on_screen])
     except:
         pass
 
     builder.ret(ir.Constant(ir.IntType(32), 0))
-    print(module)
+    return module_ir
 
+def generate_format_string(values: list) -> ir.Constant:
+    format_str_parts = []
+    for value in values:
+        if isinstance(value.type, ir.IntType):
+            format_str_parts.append("%d")
+        elif isinstance(value.type, ir.FloatType):
+            format_str_parts.append("%f")
+        elif isinstance(value.type, ir.DoubleType):
+            format_str_parts.append("%lf")
+        # pointer of int8
+        elif isinstance(value.type, ir.PointerType) \
+            and isinstance(value.type.pointee, ir.IntType) \
+            and value.type.pointee.width == 8: # type: ignore
+            format_str_parts.append("%s")
+        else:
+            raise NotImplementedError(f"Type {value.type} not implemented")
+    format_str_parts.append("\n")
+    format_str = " ".join(format_str_parts)
+    format_str = format_str.encode("utf8") + b"\x00"
+    string_type = ir.ArrayType(ir.IntType(8), len(format_str))
+    string_constant = ir.Constant(string_type, bytearray(format_str))
+    return string_constant
+
+def store_string(builder: ir.IRBuilder, string_constant: ir.Constant):
+    string_ptr = builder.alloca(string_constant.type)
+    builder.store(string_constant, string_ptr)
+    string_start_ptr = builder.gep(string_ptr,[i32(0), i32(0)])
+    return string_start_ptr
+
+def call_printf(builder: ir.IRBuilder, args):
+    # generate format string
+    format_string = generate_format_string(args)
+    format_string_ptr = store_string(builder, format_string)
+    # call printf
+    printf_function = builder.module.get_global("printf")
+    builder.call(printf_function, [format_string_ptr] + args)
 
 if __name__ == "__main__":
     code_parser = CodeParser()
@@ -372,10 +407,12 @@ if __name__ == "__main__":
         }
         return inner();
     }
-    print_on_screen: int = outer(30);
+    outer_result: int = outer(10);
+    print(outer_result);
     """
     module = code_parser.parse(code)
     symbol_table = create_symbol_table(module)
     module_ir = ir.Module(name="module")
     module_ir.triple = "x86_64-pc-linux-gnu"
     create_main(module_ir, module.body, symbol_table)
+    print(module_ir)
