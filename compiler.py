@@ -181,7 +181,7 @@ def create_statement(
             if symbol.load_type == "argument":
                 arg_index = symbol_table.lookup(symbol_table.context_name).type.get_argument_index(load.name)  # type: ignore
                 return builder.function.args[arg_index]
-            
+
             return builder.load(symbol.llvm_lite_pointer, name=load.name)
 
         case Store() as store:
@@ -200,47 +200,57 @@ def create_statement(
             function_block = function_llvm.append_basic_block(name="entry")
             function_builder = ir.IRBuilder(function_block)
             function_symbol_table = symbol_table.get_context(function.name)
-            
+
             # load closure environment
             if function_symbol_table.context_type == "closure":
                 env_struct_type = function_builder.function.args[-1]
-                for env_var in function_symbol.type.closure_parameters: # type: ignore
-                    env_index = function_symbol.type.get_environment_index(env_var.name) # type: ignore
-                    env_ptr_ptr = function_builder.gep(env_struct_type, [ i32(0), i32(env_index) ])
+                for env_var in function_symbol.type.closure_parameters:  # type: ignore
+                    env_index = function_symbol.type.get_environment_index(env_var.name)  # type: ignore
+                    env_ptr_ptr = function_builder.gep(
+                        env_struct_type, [i32(0), i32(env_index)]
+                    )
                     env_ptr = function_builder.load(env_ptr_ptr)
                     env_symbol = function_symbol_table.lookup(env_var.name)
                     env_symbol.llvm_lite_pointer = env_ptr
-            
+
             # create closure environment
             if function.value_type.is_clojure:
                 # create closure struct = { function, env }
-                env_struct_type = function_type_llvm.args[-1] # type: ignore
+                env_struct_type = function_type_llvm.args[-1]  # type: ignore
                 closure_struct_type = ir.LiteralStructType(
-                    function_type_llvm, 
-                    env_struct_type
+                    function_type_llvm, env_struct_type
                 )
                 closure_struct_ptr = function_builder.alloca(closure_struct_type)
-                function_ptr_ptr = function_builder.gep(closure_struct_ptr, [ i32(0), i32(0) ])
+                function_ptr_ptr = function_builder.gep(
+                    closure_struct_ptr, [i32(0), i32(0)]
+                )
                 builder.store(function_llvm, function_ptr_ptr)
 
                 # store env variables in env_struct_ptr
-                env_struct_ptr = function_builder.gep(closure_struct_ptr, [ i32(0), i32(1) ])
-                for closure_parameter in function.value_type.closure_parameters: # type: ignore
-                    to_load_symbol = function_symbol_table.lookup(closure_parameter.name)
-                    env_var_ptr = function_builder.alloca(convert_types(to_load_symbol.type))
-                    
+                env_struct_ptr = function_builder.gep(
+                    closure_struct_ptr, [i32(0), i32(1)]
+                )
+                for closure_parameter in function.value_type.closure_parameters:  # type: ignore
+                    to_load_symbol = function_symbol_table.lookup(
+                        closure_parameter.name
+                    )
+                    env_var_ptr = function_builder.alloca(
+                        convert_types(to_load_symbol.type)
+                    )
+
                     if to_load_symbol.load_type == "argument":
-                        arg_index = function_symbol.type.get_argument_index(to_load_symbol.name) # type: ignore
+                        arg_index = function_symbol.type.get_argument_index(to_load_symbol.name)  # type: ignore
                         builder.store(builder.function.args[arg_index], env_var_ptr)
                     else:
                         builder.store(to_load_symbol.llvm_lite_pointer, env_var_ptr)
 
-                    closure_parameter_index = function.value_type.get_environment_index(closure_parameter.name) # type: ignore
+                    closure_parameter_index = function.value_type.get_environment_index(closure_parameter.name)  # type: ignore
                     # get the pointer inside of env_struct_ptr for the current closure parameter
-                    env_var_ptr_ptr = function_builder.gep(env_struct_ptr, [ i32(0), i32(closure_parameter_index) ])
+                    env_var_ptr_ptr = function_builder.gep(
+                        env_struct_ptr, [i32(0), i32(closure_parameter_index)]
+                    )
                     builder.store(env_var_ptr, env_var_ptr_ptr)
 
-            
             for statement in function.body.statements:
                 create_statement(
                     function_builder, module, statement, function_symbol_table
@@ -255,13 +265,38 @@ def create_statement(
 
         case Call() as call:
             function_symbol = symbol_table.lookup(call.name)
-            function_return_value = builder.call(
-                function_symbol.llvm_lite_pointer,
-                [
+            if function_symbol.type.is_clojure:  # type: ignore
+                env_struct_type = function_symbol.llvm_lite_pointer.args[-1].type.pointee  # type: ignore
+                env_struct_ptr = builder.alloca(env_struct_type)
+                for closure_parameter in function_symbol.type.closure_parameters:  # type: ignore
+                    symbol = symbol_table.lookup(closure_parameter.name)
+                    if symbol.load_type == "argument":
+                        env_var_ptr = builder.gep(
+                            env_struct_ptr, [i32(0), i32(symbol.arg_index)]
+                        )
+                        argument_var_ptr = builder.alloca(convert_types(symbol.type))
+                        builder.store(builder.function.args[symbol.arg_index], argument_var_ptr)
+                        builder.store(argument_var_ptr, env_var_ptr)
+                    else:
+                        env_var_ptr = builder.gep(
+                            env_struct_ptr, [i32(0), i32(closure_parameter.index)]
+                        )
+                        builder.store(symbol.llvm_lite_pointer, env_var_ptr)
+                args = [
                     create_statement(builder, module, argument, symbol_table)
                     for argument in call.arguments
-                ],
-            )
+                ]
+                args.append(env_struct_ptr)
+                function_return_value = builder.call(function_symbol.llvm_lite_pointer, args,)
+                return function_return_value
+            else:
+                function_return_value = builder.call(
+                    function_symbol.llvm_lite_pointer,
+                    [
+                        create_statement(builder, module, argument, symbol_table)
+                        for argument in call.arguments
+                    ],
+                )
             return function_return_value
 
         case If() as if_statement:
@@ -277,9 +312,7 @@ def create_statement(
 
                     with otherwise:
                         for statement in if_statement.otherwise.statements:
-                            create_statement(
-                                builder, module, statement, symbol_table
-                            )
+                            create_statement(builder, module, statement, symbol_table)
             else:
                 with builder.if_then(condition_result):
                     for statement in if_statement.then.statements:
@@ -288,7 +321,9 @@ def create_statement(
 
 def create_string(string: str) -> ir.Constant:
     string_type = ir.ArrayType(ir.IntType(8), len(string) + 2)
-    string_constant = ir.Constant(string_type, bytearray(string.encode("utf8") + b'\x0A\x00'))
+    string_constant = ir.Constant(
+        string_type, bytearray(string.encode("utf8") + b"\x0A\x00")
+    )
     return string_constant
 
 
@@ -328,12 +363,13 @@ def create_main(module: ir.Module, module_body: Body, symbol_table: SymbolTable)
 if __name__ == "__main__":
     code_parser = CodeParser()
     code = """
-    function outer(a: int) -> null {
+    function outer(a: int) -> int {
         function inner() -> int {
             return a + 10;
         }
+        return inner();
     }
-    print_on_screen: int = 20;
+    print_on_screen: int = outer(30);
     """
     module = code_parser.parse(code)
     symbol_table = create_symbol_table(module)
