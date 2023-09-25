@@ -21,7 +21,7 @@ from mylang.ast.ast_objects import (
     VariableDeclaration,
 )
 from mylang.parser.code_parser import CodeParser
-from symbol_table import SymbolTable, create_symbol_table, print_symbol_table
+from mylang.symbol_table import SymbolTable, create_symbol_table, print_symbol_table
 
 # Globals
 i1 = ir.IntType(1)
@@ -348,13 +348,16 @@ def create_main(module: ir.Module, module_body: Body, symbol_table: SymbolTable)
         format_string_ptr,
         [ir.Constant(ir.IntType(32), 0), ir.Constant(ir.IntType(32), 0)],
     )
-    builder.call(
-        printf,
-        [
-            format_string_ptr,
-            builder.load(symbol_table.lookup("print_on_screen").llvm_lite_pointer),
-        ],
-    )
+    try:
+        builder.call(
+            printf,
+            [
+                format_string_ptr,
+                builder.load(symbol_table.lookup("print_on_screen").llvm_lite_pointer),
+            ],
+        )
+    except:
+        pass
 
     builder.ret(ir.Constant(ir.IntType(32), 0))
     print(module)
