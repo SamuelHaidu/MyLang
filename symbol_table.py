@@ -28,6 +28,7 @@ class Symbol:
     name: str
     type: MyLangType
     load_type: LoadType
+    arg_index: Optional[int] = None
     llvm_lite_pointer: Optional[object] = None
 
     def copy(self) -> "Symbol":
@@ -68,6 +69,7 @@ class SymbolTable:
         name: str,
         type: MyLangType,
         load_type: LoadType = "local",
+        arg_index: Optional[int] = None,
     ):
         if self.context_name == self.module_context_name:
             load_type = "global"
@@ -75,7 +77,7 @@ class SymbolTable:
         if name in self.symbols:
             raise Exception(f"Symbol {name} already declared in {self.context_name}")
 
-        self.symbols[name] = Symbol(name, type, load_type)
+        self.symbols[name] = Symbol(name, type, load_type, arg_index)
         if isinstance(type, FunctionType):
             self._contexts[name] = SymbolTable(name, self)
 
@@ -160,9 +162,9 @@ def create_symbol_table(
         case Function() as function:
             symbol_table.declare(function.name, function.value_type)
             function_symbol_table = symbol_table.get_context(function.name)
-            for argument in function.parameters:
+            for index, argument in enumerate(function.parameters):
                 function_symbol_table.declare(
-                    argument.name, argument.value_type, "argument"
+                    argument.name, argument.value_type, "argument", index
                 )
 
             create_symbol_table(function.body, function_symbol_table)
