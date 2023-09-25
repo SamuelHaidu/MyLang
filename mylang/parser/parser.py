@@ -34,6 +34,11 @@ class CalcParser(Parser):
         ">=": "ge",
         "<=": "le",
         "==": "eq",
+        "!=": "ne",
+        "or": "or",
+        "and": "and",
+        "not": "not",
+        "xor": "xor",
     }
 
     type_map = {
@@ -121,7 +126,7 @@ class CalcParser(Parser):
 
     @_("SYMBOL L_PARENTHESIS expr R_PARENTHESIS")  # type: ignore
     def term(self, p):  # type: ignore
-        return Call(p.SYMBOL, p.expr)
+        return Call(p.SYMBOL, [p.expr])
 
     @_("SYMBOL L_PARENTHESIS arguments R_PARENTHESIS")  # type: ignore
     def term(self, p):  # type: ignore
