@@ -178,7 +178,7 @@ def create_statement(
 
         case Load() as load:
             symbol = symbol_table.lookup(load.name)
-            if symbol.load_type == "argument":
+            if symbol.load_type == "argument" and symbol.llvm_lite_pointer is None:
                 arg_index = symbol_table.lookup(symbol_table.context_name).type.get_argument_index(load.name)  # type: ignore
                 return builder.function.args[arg_index]
 
@@ -187,7 +187,14 @@ def create_statement(
         case Store() as store:
             value = create_statement(builder, module, store.value, symbol_table)
             symbol = symbol_table.lookup(store.name)
-            builder.store(value, symbol.llvm_lite_pointer)
+            if symbol.load_type == "argument" and symbol.llvm_lite_pointer is None:
+                arg_index = symbol_table.lookup(symbol_table.context_name).type.get_argument_index(store.name) # type: ignore
+                arg = builder.function.args[arg_index]
+                arg_ptr = builder.alloca(arg.type)
+                builder.store(arg, arg_ptr)
+                builder.store(value, arg_ptr)
+                symbol.llvm_lite_pointer = arg_ptr
+            return builder.store(value, symbol.llvm_lite_pointer)
 
         case LiteralValue() as literal_value:
             return convert_literals(literal_value.value_type, literal_value.value)
